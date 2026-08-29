@@ -5,11 +5,11 @@ containers.
 Usage Examples:
 
 1. Run a single script:
-modal run scripts/modal_runner.py \
+uv run modal run scripts/modal_runner.py \
     --command "scripts/prompting_baselines.py --batch-size 16"
 
 2. Run parallel sweeps across multiple seeds/configurations:
-modal run scripts/modal_runner.py \
+uv run modal run scripts/modal_runner.py \
     --command "scripts/grpo.py --seed 0 --lr 1e-5" \
     --command "scripts/grpo.py --seed 1 --lr 1e-5" \
     --command "scripts/grpo.py --seed 2 --lr 1e-5"
