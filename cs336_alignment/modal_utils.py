@@ -26,10 +26,11 @@ import subprocess
 
 import modal
 
-
-SUNET_ID = "TODO"  # NOTE: modal_utils.py should remain unchanged other than adding your SUNET_ID.
+SUNET_ID = "sacchiniccolo"  # NOTE: modal_utils.py should remain unchanged other than adding your SUNET_ID.
 if SUNET_ID == "TODO":
-    raise ValueError("Please set SUNET_ID in cs336_alignment/modal_utils.py before running Modal jobs.")
+    raise ValueError(
+        "Please set SUNET_ID in cs336_alignment/modal_utils.py before running Modal jobs."
+    )
 
 
 GPU = "B200:2"
