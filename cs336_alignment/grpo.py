@@ -1,5 +1,5 @@
 import torch
-from transformers import PreTrainedTokenizerBase
+from transformers import PreTrainedTokenizerBase, PreTrainedModel
 
 
 def tokenize_prompt_and_output(
@@ -42,4 +42,33 @@ def tokenize_prompt_and_output(
         "input_ids": prompt_and_outputs_tensor[:, :-1],
         "labels": prompt_and_outputs_tensor[:, 1:],
         "response_mask": torch.tensor(mask_padded, dtype=torch.int),
+    }
+
+
+def get_response_log_probs(
+    model: PreTrainedModel,
+    input_ids: torch.Tensor,
+    labels: torch.Tensor,
+    return_token_entropy: bool = False,
+) -> dict[str, torch.Tensor]:
+    """
+    uv run pytest -k test_get_response_log_probs
+    """
+    out = model(input_ids.to(model.device))
+
+    # Shape: [batch_size, seq_len, vocab_size].
+    log_probs = torch.log_softmax(out.logits, dim=-1)
+
+    # Pick out the log-prob corresponding to each label token.
+    selected_log_probs = torch.gather(log_probs, dim=-1, index=labels.unsqueeze(-1))
+    selected_log_probs = selected_log_probs.squeeze(-1)  # [batch_size, seq_len]
+
+    if return_token_entropy:
+        return {
+            "log_probs": selected_log_probs,
+            # Shape: [batch_size, seq_len].
+            "token_entropy": -(log_probs.exp() * log_probs).sum(dim=-1),
+        }
+    return {
+        "log_probs": selected_log_probs,
     }
