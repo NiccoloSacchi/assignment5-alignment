@@ -1,4 +1,5 @@
 import torch
+from typing import Callable
 from transformers import PreTrainedTokenizerBase, PreTrainedModel
 
 
@@ -72,3 +73,31 @@ def get_response_log_probs(
     return {
         "log_probs": selected_log_probs,
     }
+
+
+def compute_rollout_rewards(
+    reward_fn: Callable[[str, str], dict[str, float]],
+    rollout_responses: list[str],
+    repeated_ground_truths: list[str],
+) -> tuple[torch.Tensor, dict[str, float]]:
+    """
+    uv run pytest -k compute_rollout_rewards
+    """
+    rewards = []
+    format_rewards = []
+    answer_rewards = []
+    for resp, gt in zip(rollout_responses, repeated_ground_truths):
+        scores = reward_fn(resp, gt)
+        rewards.append(scores["reward"])
+        format_rewards.append(scores["format_reward"])
+        answer_rewards.append(scores["answer_reward"])
+
+    raw_rewards = torch.tensor(rewards, dtype=torch.float32)
+    format_t = torch.tensor(format_rewards, dtype=torch.float32)
+    answer_t = torch.tensor(answer_rewards, dtype=torch.float32)
+    metadata = {
+        "mean_reward": raw_rewards.mean().item(),
+        "mean_format_reward": format_t.mean().item(),
+        "mean_answer_reward": answer_t.mean().item(),
+    }
+    return raw_rewards, metadata
