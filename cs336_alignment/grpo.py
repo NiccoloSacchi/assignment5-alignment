@@ -1,6 +1,7 @@
 import torch
-from typing import Callable
+from typing import Callable, Literal
 from transformers import PreTrainedTokenizerBase, PreTrainedModel
+from einops import rearrange
 
 
 def tokenize_prompt_and_output(
@@ -101,3 +102,47 @@ def compute_rollout_rewards(
         "mean_answer_reward": answer_t.mean().item(),
     }
     return raw_rewards, metadata
+
+
+def compute_group_normalized_rewards(
+    raw_rewards: torch.Tensor,
+    group_size: int,
+    baseline: Literal["mean", "none"] = "mean",
+    advantage_eps: float = 1e-6,
+    advantage_normalizer: Literal["std", "none", "mean"] = "std",
+) -> tuple[torch.Tensor, dict[str, float]]:
+    assert (
+        raw_rewards.shape[0] % group_size == 0
+    ), "raw_rewards shape must be a multiple of group_size"
+
+    # Reshape into (num_groups, group_size) so all groups are processed in
+    # parallel.
+    grouped = rearrange(raw_rewards, "(g s) -> g s", s=group_size)
+
+    # 1. Compute baseline (shape: (num_groups, 1) or scalar).
+    if baseline == "mean":
+        b = grouped.mean(dim=-1, keepdim=True)
+    elif baseline == "none":
+        b = 0.0
+    else:
+        raise NotImplementedError(f"baseline '{baseline}' not supported")
+
+    # 2. Compute normalizer (shape: (num_groups, 1) or scalar).
+    if advantage_normalizer == "std":
+        norm = grouped.std(dim=-1, keepdim=True) + advantage_eps
+    elif advantage_normalizer == "mean":
+        norm = grouped.mean(dim=-1, keepdim=True) + advantage_eps
+    elif advantage_normalizer == "none":
+        norm = 1.0
+    else:
+        raise NotImplementedError(
+            f"advantage_normalizer '{advantage_normalizer}' not supported"
+        )
+
+    # 3. Compute advantages and flatten back to 1D.
+    advantages = rearrange((grouped - b) / norm, "g s -> (g s)")
+    metadata = {
+        "mean_advantage": advantages.mean().item(),
+        "std_advantage": advantages.std().item() if len(advantages) > 1 else 0.0,
+    }
+    return advantages, metadata

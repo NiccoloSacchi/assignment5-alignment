@@ -6,11 +6,13 @@ from typing import Any, Callable, Literal
 import torch
 from torch import Tensor
 from torch.utils.data import Dataset
-from transformers import PreTrainedTokenizerBase
+from transformers import PreTrainedTokenizerBase, PreTrainedModel
+
 from cs336_alignment.grpo import (
     tokenize_prompt_and_output,
     get_response_log_probs,
     compute_rollout_rewards,
+    compute_group_normalized_rewards,
 )
 
 
@@ -54,7 +56,7 @@ def run_tokenize_prompt_and_output(
 
 
 def run_get_response_log_probs(
-    model: torch.nn.Module,
+    model: PreTrainedModel,
     input_ids: torch.Tensor,
     labels: torch.Tensor,
     return_token_entropy: bool,
@@ -157,7 +159,9 @@ def run_compute_group_normalized_rewards(
                 your choice of other statistics to log (e.g. mean, std, max/min
                 of rewards).
     """
-    raise NotImplementedError
+    return compute_group_normalized_rewards(
+        raw_rewards, group_size, baseline, advantage_eps, advantage_normalizer
+    )
 
 
 def run_compute_policy_gradient_loss(
