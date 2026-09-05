@@ -101,6 +101,9 @@ def compute_rollout_rewards(
         "mean_reward": raw_rewards.mean().item(),
         "mean_format_reward": format_t.mean().item(),
         "mean_answer_reward": answer_t.mean().item(),
+        "std_reward": raw_rewards.std().item() if len(raw_rewards) > 1 else 0.0,
+        "min_reward": raw_rewards.min().item(),
+        "max_reward": raw_rewards.max().item(),
     }
     return raw_rewards, metadata
 
@@ -145,6 +148,8 @@ def compute_group_normalized_rewards(
     metadata = {
         "mean_advantage": advantages.mean().item(),
         "std_advantage": advantages.std().item() if len(advantages) > 1 else 0.0,
+        "min_advantage": advantages.min().item(),
+        "max_advantage": advantages.max().item(),
     }
     return advantages, metadata
 
@@ -207,3 +212,158 @@ def aggregate_loss_across_microbatch(
         )
 
     return loss
+
+
+def grpo_train_step(
+    model: PreTrainedModel,
+    tokenizer: PreTrainedTokenizerBase,
+    optimizer: torch.optim.Optimizer,
+    gradient_accumulation_steps: int,
+    max_grad_norm: float | None,
+    reward_fn: Callable[[str, str], dict[str, float]],
+    # len = rollout_batch_size = n_prompts_per_rollout_batch * group_size.
+    repeated_prompts: list[str],
+    # len = rollout_batch_size = n_prompts_per_rollout_batch * group_size.
+    rollout_responses: list[str],
+    # len = rollout_batch_size = n_prompts_per_rollout_batch * group_size.
+    repeated_ground_truths: list[str],
+    group_size: int,
+    # Reward normalization
+    baseline: Literal["mean", "none"] = "mean",
+    advantage_eps: float = 1e-6,
+    advantage_normalizer: Literal["std", "none", "mean"] = "std",
+    # Importance reweighting and clipping
+    importance_reweighting_method: Literal["none", "noclip", "grpo", "gspo"] = "none",
+    old_log_probs: torch.Tensor | None = None,
+    cliprange: float | None = None,
+    # Loss normalization
+    loss_normalization: Literal["sequence", "constant"] = "sequence",
+    normalization_constant: int | None = None,
+) -> tuple[torch.Tensor, dict[str, torch.Tensor | float]]:
+    """
+    uv run pytest -k test_grpo_train_step_standard_on_policy
+    """
+
+    if baseline != "mean":
+        raise NotImplementedError(f"baseline '{baseline}' not supported")
+
+    if advantage_normalizer != "std":
+        raise NotImplementedError(
+            f"advantage_normalizer '{advantage_normalizer}' not supported"
+        )
+
+    if importance_reweighting_method != "none":
+        raise NotImplementedError(
+            f"importance_reweighting_method '{importance_reweighting_method}' not supported"
+        )
+
+    if loss_normalization != "sequence":
+        raise NotImplementedError(
+            f"loss_normalization '{loss_normalization}' not supported"
+        )
+
+    # Compute the advantage for each rollout at once.
+    raw_rewards, reward_metadata = compute_rollout_rewards(
+        reward_fn, rollout_responses, repeated_ground_truths
+    )
+    advantages, advantage_metadata = compute_group_normalized_rewards(
+        raw_rewards, group_size, baseline, advantage_eps, advantage_normalizer
+    )
+
+    # Compute the per-token loss, and then aggregate it.
+    tokenized = tokenize_prompt_and_output(
+        repeated_prompts, rollout_responses, tokenizer
+    )
+
+    optimizer.zero_grad(set_to_none=True)
+    device = model.device
+    microbatch_size = len(repeated_prompts) // gradient_accumulation_steps
+    total_loss = torch.tensor(0.0, device=device)
+    total_entropy_sum = 0.0
+
+    for i in range(gradient_accumulation_steps):
+        start = i * microbatch_size
+        end = start + microbatch_size
+
+        micro_input_ids = tokenized["input_ids"][start:end].to(device)
+        micro_labels = tokenized["labels"][start:end].to(device)
+        micro_mask = tokenized["response_mask"][start:end].to(device)
+        micro_advantages = advantages[start:end].to(device)
+        micro_old_log_probs = (
+            None if old_log_probs is None else old_log_probs[start:end].to(device)
+        )
+
+        log_probs = get_response_log_probs(
+            model,
+            micro_input_ids,
+            micro_labels,
+            return_token_entropy=True,
+        )
+
+        # Accumulate token entropy across microbatches over active response
+        # tokens.
+        total_entropy_sum += (log_probs["token_entropy"] * micro_mask).sum().item()
+
+        per_token_loss, per_token_loss_metadata = compute_policy_gradient_loss(
+            micro_advantages,
+            log_probs["log_probs"],
+            importance_reweighting_method,
+            micro_old_log_probs,
+            cliprange,
+            micro_mask,
+        )
+
+        micro_loss = aggregate_loss_across_microbatch(
+            per_token_loss,
+            micro_mask,
+            loss_normalization,
+            normalization_constant,
+        )
+
+        # Scale loss by gradient_accumulation_steps for backward pass
+        scaled_loss = micro_loss * (len(micro_input_ids) / len(repeated_prompts))
+        scaled_loss.backward()
+        total_loss = total_loss + scaled_loss.detach()
+
+    grad_norm = 0.0
+    if max_grad_norm is not None:
+        grad_norm_tensor = torch.nn.utils.clip_grad_norm_(
+            model.parameters(), max_grad_norm
+        )
+        grad_norm = grad_norm_tensor.item()
+
+    optimizer.step()
+    optimizer.zero_grad(set_to_none=True)
+
+    # Compute binary solve rate (pass@1) and best-of-k solve rate (pass@k)
+    is_correct = (raw_rewards >= 1.0).float()
+    # pass_at_1 = % correct responses.
+    pass_at_1 = is_correct.mean().item()
+    grouped_correct = is_correct.view(-1, group_size)
+    # pass_at_k = % prompts that have at least 1 correct anwer.
+    pass_at_k = (grouped_correct.sum(dim=-1) > 0).float().mean().item()
+
+    # Compute response lengths.
+    response_lengths = tokenized["response_mask"].sum(dim=-1).float()
+    mean_response_length = response_lengths.mean().item()
+    max_response_length = response_lengths.max().item()
+
+    metadata = {
+        # Core training metrics (explicitly required by prompt)
+        "loss": total_loss.item(),
+        "grad_norm": grad_norm,
+        "token_entropy": total_entropy_sum
+        / max(1, tokenized["response_mask"].sum().item()),
+        "reward": reward_metadata["mean_reward"],
+        "format_reward": reward_metadata["mean_format_reward"],
+        "answer_reward": reward_metadata["mean_answer_reward"],
+        # Reasoning performance metrics
+        "pass@1": pass_at_1,
+        f"pass@{group_size}": pass_at_k,
+        "mean_response_length": mean_response_length,
+        "max_response_length": max_response_length,
+        # Propagated rollout and advantage distribution stats
+        **{f"rollout/{k}": v for k, v in reward_metadata.items()},
+        **{f"advantage/{k}": v for k, v in advantage_metadata.items()},
+    }
+    return total_loss, metadata
