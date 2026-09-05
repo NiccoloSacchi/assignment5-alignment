@@ -15,6 +15,7 @@ dependencies = [
     "typer>=0.15.4",
     "xopen>=2.0.2",
     "einops>=0.8.1",
+    "jaxtyping>=0.3.11",
 ]
 
 [project.optional-dependencies]

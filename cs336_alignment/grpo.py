@@ -1,7 +1,8 @@
 import torch
 from typing import Callable, Literal
 from transformers import PreTrainedTokenizerBase, PreTrainedModel
-from einops import rearrange
+from jaxtyping import Float
+from einops import rearrange, einsum
 
 
 def tokenize_prompt_and_output(
@@ -146,3 +147,32 @@ def compute_group_normalized_rewards(
         "std_advantage": advantages.std().item() if len(advantages) > 1 else 0.0,
     }
     return advantages, metadata
+
+
+def compute_policy_gradient_loss(
+    raw_rewards_or_advantages: (
+        Float[torch.Tensor, "batch_size"] | Float[torch.Tensor, "batch_size 1"]
+    ),
+    policy_log_probs: Float[torch.Tensor, "batch_size sequence_length"],
+    importance_reweighting_method: Literal["none", "noclip", "grpo", "gspo"] = "none",
+    old_log_probs: Float[torch.Tensor, "batch_size sequence_length"] | None = None,
+    cliprange: float | None = None,
+    response_mask: Float[torch.Tensor, "batch_size sequence_length"] | None = None,
+) -> tuple[Float[torch.Tensor, "batch_size sequence_length"], dict[str, torch.Tensor]]:
+    """
+    uv run pytest -k test_compute_policy_gradient_loss_on_policy
+    """
+
+    if importance_reweighting_method != "none":
+        raise NotImplementedError(
+            f"importance_reweighting_method {importance_reweighting_method} not supported"
+        )
+
+    per_token_loss = -einsum(
+        raw_rewards_or_advantages.view(-1),
+        policy_log_probs,
+        "batch_size, batch_size sequence_length -> batch_size sequence_length",
+    )
+
+    metadata = {}
+    return per_token_loss, metadata

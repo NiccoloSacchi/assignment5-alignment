@@ -87,6 +87,7 @@ source = { editable = "." }
 dependencies = [
     { name = "accelerate", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
     { name = "einops", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+    { name = "jaxtyping", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
     { name = "math-verify", extra = ["antlr4-13-2"], marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
     { name = "modal", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
     { name = "pylatexenc", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
@@ -117,6 +118,7 @@ requires-dist = [
     { name = "alpaca-eval", marker = "extra == 'gpu'", specifier = ">=0.6.6" },
     { name = "einops", specifier = ">=0.8.1" },
     { name = "flash-attn", marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'gpu'", url = "https://github.com/lesj0610/flash-attention/releases/download/v2.8.3-cu12-torch2.10-cp312/flash_attn-2.8.3%2Bcu12torch2.10cxx11abiTRUE-cp312-cp312-linux_x86_64.whl" },
+    { name = "jaxtyping", specifier = ">=0.3.11" },
     { name = "math-verify", extras = ["antlr4-13-2"], specifier = ">=0.7.0" },
     { name = "modal", specifier = ">=1.1.0" },
     { name = "pylatexenc", specifier = ">=2.10" },
@@ -965,6 +967,18 @@ sdist = { url = "https://files.pythonhosted.org/packages/d2/20/616a1c63c73a21d9f
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c9/dd/0f154d7a88d106b12bafa576e0d442952da9b25f8a81c46a4af1282d43d7/isal-1.7.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:e4c126cbe046bc7a4a10692ed306e9533e4b1c6672443eee21a20482a730c341", size = 261852, upload-time = "2025-03-05T12:11:38.97Z" },
     { url = "https://files.pythonhosted.org/packages/88/bd/e805376fb476d00ac1fcf2a096baab26a659291e29a730c368dc27d6583b/isal-1.7.2-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:b6dbb7accc8526cd164eacffec3c117d2a9ff4b03655838346378bf55552c691", size = 268437, upload-time = "2025-03-05T12:11:41.861Z" },
+]
+
+[[package]]
+name = "jaxtyping"
+version = "0.3.11"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "wadler-lindig", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'x86_64' and sys_platform == 'linux')" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/91/c1/091b8852bd7cbf50bd655543c8506033cf4029300c67f8c176c1286879a9/jaxtyping-0.3.11.tar.gz", hash = "sha256:b09c14acf6686feb9e0df5b0d8c6e7c5b6f8d36bf059ee54cd522a186c2ef050", size = 46489, upload-time = "2026-06-13T18:35:23.167Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8b/38/c66bbdc5047f4776c2bd3e47e5295a350e3fa44d5b8942105e71c2a876a0/jaxtyping-0.3.11-py3-none-any.whl", hash = "sha256:8a4bedc4e3f963fa82df41bd13c7ebc2bad925601eb48614c65798f21329d4e3", size = 56593, upload-time = "2026-06-13T18:35:22.01Z" },
 ]
 
 [[package]]
@@ -2795,6 +2809,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/a8/49/60a2a962ecbf780c8fbfd0d5548b208d654d5c4267df94d8d93883641431/vllm-0.19.1.tar.gz", hash = "sha256:9fb88ce6b50991eba41d183584f65f51d7f6015d86a42cdabf79c1c8bd5d66fa", size = 31105401, upload-time = "2026-04-18T05:50:15.143Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/78/20/f41216b79c87372a9d03175f36fa1411ee61059ce8c557d2691722ea4aae/vllm-0.19.1-cp38-abi3-manylinux_2_31_x86_64.whl", hash = "sha256:71a87f46cafab4489c69a5c5c83b870d0235e5694d8222303d460576293dc719", size = 433132101, upload-time = "2026-04-18T05:49:54.202Z" },
+]
+
+[[package]]
+name = "wadler-lindig"
+version = "0.1.7"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/1e/67/cbae4bf7683a64755c2c1778c418fea96d00e34395bb91743f08bd951571/wadler_lindig-0.1.7.tar.gz", hash = "sha256:81d14d3fe77d441acf3ebd7f4aefac20c74128bf460e84b512806dccf7b2cd55", size = 15842, upload-time = "2025-06-18T07:00:42.843Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8d/96/04e7b441807b26b794da5b11e59ed7f83b2cf8af202bd7eba8ad2fa6046e/wadler_lindig-0.1.7-py3-none-any.whl", hash = "sha256:e3ec83835570fd0a9509f969162aeb9c65618f998b1f42918cfc8d45122fe953", size = 20516, upload-time = "2025-06-18T07:00:41.684Z" },
 ]
 
 [[package]]

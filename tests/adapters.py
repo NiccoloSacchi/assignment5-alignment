@@ -13,6 +13,7 @@ from cs336_alignment.grpo import (
     get_response_log_probs,
     compute_rollout_rewards,
     compute_group_normalized_rewards,
+    compute_policy_gradient_loss,
 )
 
 
@@ -208,7 +209,14 @@ def run_compute_policy_gradient_loss(
                 Statistics from the underlying loss call, such as
                 clip-fraction components.
     """
-    raise NotImplementedError
+    return compute_policy_gradient_loss(
+        raw_rewards_or_advantages,
+        policy_log_probs,
+        importance_reweighting_method,
+        old_log_probs,
+        cliprange,
+        response_mask,
+    )
 
 
 def run_aggregate_loss_across_microbatch(
