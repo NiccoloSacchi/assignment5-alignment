@@ -14,6 +14,7 @@ from cs336_alignment.grpo import (
     compute_rollout_rewards,
     compute_group_normalized_rewards,
     compute_policy_gradient_loss,
+    aggregate_loss_across_microbatch,
 )
 
 
@@ -248,7 +249,9 @@ def run_aggregate_loss_across_microbatch(
             A scalar containing the average loss. Make sure you can later call
             backward on this loss.
     """
-    raise NotImplementedError
+    return aggregate_loss_across_microbatch(
+        per_token_policy_gradient_loss, mask, loss_normalization, normalization_constant
+    )
 
 
 def run_grpo_train_step(

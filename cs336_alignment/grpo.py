@@ -176,3 +176,34 @@ def compute_policy_gradient_loss(
 
     metadata = {}
     return per_token_loss, metadata
+
+
+def aggregate_loss_across_microbatch(
+    per_token_policy_gradient_loss: Float[torch.Tensor, "batch_size sequence_length"],
+    mask: Float[torch.Tensor, "batch_size sequence_length"],
+    loss_normalization: Literal["sequence", "constant"] = "sequence",
+    normalization_constant: int | None = None,
+) -> Float[torch.Tensor, "1"]:
+    """
+    uv run pytest -k test_aggregate_loss_across_microbatch_sequence
+    """
+    per_token_loss_masked = per_token_policy_gradient_loss * mask
+
+    loss = None
+    if loss_normalization == "sequence":
+        # Compute the normalization per-sequence, depending on the amount of
+        # non-masked tokens.
+        per_sequence_loss = per_token_loss_masked.sum(dim=-1) / mask.sum(dim=-1)
+        loss = per_sequence_loss.mean()
+    elif loss_normalization == "constant":
+        if normalization_constant is None:
+            raise ValueError(
+                "normalization_constant must be provided for constant normalization"
+            )
+        loss = per_token_loss_masked.sum() / normalization_constant
+    else:
+        raise NotImplementedError(
+            f"normalization_constant {normalization_constant} not supported"
+        )
+
+    return loss
